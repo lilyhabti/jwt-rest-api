@@ -2,6 +2,8 @@ package com.springboot.app.filters;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.servlet.FilterChain;
@@ -18,6 +20,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.springboot.app.JWTUtil;
+
 
 public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
 	
@@ -43,15 +48,25 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 		
 		System.out.println("successfulAuthentication");
 		User user =(User) authResult.getPrincipal();
-		Algorithm algorithm=Algorithm.HMAC256("mySecret1234");
+		Algorithm algorithm=Algorithm.HMAC256(JWTUtil.SECRET);
 		String jwtAccessToken = JWT.create()
 				.withSubject(user.getUsername())
-				.withExpiresAt(new Date(System.currentTimeMillis()+5*60*1000))
+				.withExpiresAt(new Date(System.currentTimeMillis()+JWTUtil.EXPIRE_ACCESS_TOKEN))
 				.withIssuer(request.getRequestURI().toString())
 				.withClaim("roles", user.getAuthorities().stream().map(ga->ga.getAuthority()).collect(Collectors.toList()))
 				.sign(algorithm);
 		
-		response.setHeader("Authorization", jwtAccessToken);
+		String jwtRefreshToken = JWT.create()
+				.withSubject(user.getUsername())
+				.withExpiresAt(new Date(System.currentTimeMillis()+JWTUtil.EXPIRE_REFRESH_TOKEN))
+				.withIssuer(request.getRequestURI().toString())
+				.sign(algorithm);
+		
+		Map<String,String> idToken = new HashMap<>();
+		idToken.put("access-token", jwtAccessToken);
+		idToken.put("refresh-token", jwtRefreshToken);
+		response.setContentType("application/json");
+		new ObjectMapper().writeValue(response.getOutputStream(), idToken);
 	}
 
 }
